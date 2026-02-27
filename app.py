@@ -15,7 +15,7 @@ if not TOKEN or not CHAT_ID:
 
 bot = Bot(token=TOKEN)
 
-# İlanlar dosyası
+# İlanları kaydetmek için dosya
 ILAN_DOSYA = "ilanlar.json"
 
 # Dosya yoksa oluştur
@@ -23,7 +23,7 @@ if not os.path.exists(ILAN_DOSYA):
     with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
         json.dump([], f, ensure_ascii=False, indent=2)
 
-# İlanları dosyadan oku
+# Önceki ilanları oku
 with open(ILAN_DOSYA, "r", encoding="utf-8") as f:
     onceki_ilanlar = json.load(f)
 
@@ -40,7 +40,11 @@ for ilan in soup.find_all("div", class_="job-title"):  # siteye göre class değ
     text = ilan.get_text(strip=True)
     tum_ilanlar.append(text)
 
-# Sadece yeni ilanları filtrele
+# 🔹 TEST İLANI EKLE (Telegram test için)
+# Bu satırı gerçek yayına alırken silebilirsin
+tum_ilanlar.append("TEST: Bu bir KPSS test ilanıdır")
+
+# Yeni ilanları filtrele
 yeni_ilanlar = []
 for ilan in tum_ilanlar:
     if ilan in onceki_ilanlar:
@@ -52,7 +56,7 @@ for ilan in tum_ilanlar:
     elif any(x in ilan for x in ["Memur", "Daimi", "Kamu"]) and "KPSS" not in ilan:
         yeni_ilanlar.append(ilan)
 
-# Yeni ilan varsa Telegram’a gönder
+# Telegram’a gönder
 async def gonder():
     for ilan in yeni_ilanlar:
         await bot.send_message(chat_id=CHAT_ID, text=f"🚨 Yeni İlan: {ilan}")
@@ -60,8 +64,9 @@ async def gonder():
 if yeni_ilanlar:
     asyncio.run(gonder())
 
-# Son durumları kaydet
+# Son durumu kaydet
 with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
     json.dump(tum_ilanlar, f, ensure_ascii=False, indent=2)
 
+# Log için bilgi
 print(f"{len(yeni_ilanlar)} yeni ilan kontrol edildi ve gönderildi.")
