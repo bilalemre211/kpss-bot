@@ -42,7 +42,7 @@ for ilan in soup.find_all("div", class_="job-title"):  # siteye göre class değ
 
 # 🔹 TEST İLANI EKLE (Telegram test için)
 # Bu satırı gerçek yayına alırken silebilirsin
-tum_ilanlar.append("TEST: Bu bir KPSS test ilanıdır")
+
 
 # Yeni ilanları filtrele
 yeni_ilanlar = []
@@ -70,3 +70,4 @@ with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
 
 # Log için bilgi
 print(f"{len(yeni_ilanlar)} yeni ilan kontrol edildi ve gönderildi.")
+
