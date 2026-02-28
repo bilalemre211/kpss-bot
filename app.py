@@ -178,17 +178,3 @@ with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
     json.dump(onceki, f)
 
 print(f"{len(yeni)} yeni ilan bulundu ve gönderildi.")
-
-
-from telegram import Bot
-import os
-import asyncio
-
-TOKEN = os.environ.get("TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
-bot = Bot(token=TOKEN)
-
-async def test_mesaj():
-    await bot.send_message(chat_id=CHAT_ID, text="🚨 Bu bir test mesajıdır!")
-
-asyncio.run(test_mesaj())
