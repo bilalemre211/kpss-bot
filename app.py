@@ -12,6 +12,7 @@ bot = Bot(token=TOKEN)
 
 ILAN_DOSYA = "ilanlar.json"
 
+# Dosya yoksa oluştur
 if not os.path.exists(ILAN_DOSYA):
     with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
         json.dump([], f)
@@ -22,18 +23,34 @@ with open(ILAN_DOSYA, "r", encoding="utf-8") as f:
 tum_ilanlar = []
 
 # =========================
+# Güvenli Request Fonksiyonu
+# =========================
+def safe_request(url):
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+        return requests.get(url, headers=headers, timeout=15)
+    except:
+        return None
+
+# =========================
 # 1️⃣ İŞKUR
 # =========================
 def iskur():
     url = "https://esube.iskur.gov.tr/Istihdam/JobList"
-    r = requests.get(url)
+    r = safe_request(url)
+    if not r:
+        return []
     soup = BeautifulSoup(r.text, "html.parser")
     ilanlar = []
-    for item in soup.find_all("a"):
-        text = item.get_text(strip=True)
-        link = item.get("href")
-        if text and link and len(text) > 10:
-            ilanlar.append((text, "https://esube.iskur.gov.tr" + link, "İŞKUR"))
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        link = a.get("href")
+        if text and link and len(text) > 15:
+            if not link.startswith("http"):
+                link = "https://esube.iskur.gov.tr" + link
+            ilanlar.append((text, link, "İŞKUR"))
     return ilanlar
 
 # =========================
@@ -41,14 +58,18 @@ def iskur():
 # =========================
 def ilan_gov():
     url = "https://www.ilan.gov.tr/ilan/kategori/8/kamu-akademik-personel"
-    r = requests.get(url)
+    r = safe_request(url)
+    if not r:
+        return []
     soup = BeautifulSoup(r.text, "html.parser")
     ilanlar = []
-    for item in soup.find_all("a"):
-        text = item.get_text(strip=True)
-        link = item.get("href")
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        link = a.get("href")
         if text and link and "ilan" in link:
-            ilanlar.append((text, "https://www.ilan.gov.tr" + link, "ilan.gov.tr"))
+            if not link.startswith("http"):
+                link = "https://www.ilan.gov.tr" + link
+            ilanlar.append((text, link, "ilan.gov.tr"))
     return ilanlar
 
 # =========================
@@ -56,13 +77,15 @@ def ilan_gov():
 # =========================
 def resmi_gazete():
     url = "https://www.resmigazete.gov.tr/"
-    r = requests.get(url)
+    r = safe_request(url)
+    if not r:
+        return []
     soup = BeautifulSoup(r.text, "html.parser")
     ilanlar = []
-    for item in soup.find_all("a"):
-        text = item.get_text(strip=True)
-        link = item.get("href")
-        if "personel" in text.lower():
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        link = a.get("href")
+        if text and "personel" in text.lower():
             ilanlar.append((text, link, "Resmi Gazete"))
     return ilanlar
 
@@ -71,13 +94,15 @@ def resmi_gazete():
 # =========================
 def sbb():
     url = "https://kamuilan.sbb.gov.tr/"
-    r = requests.get(url)
+    r = safe_request(url)
+    if not r:
+        return []
     soup = BeautifulSoup(r.text, "html.parser")
     ilanlar = []
-    for item in soup.find_all("a"):
-        text = item.get_text(strip=True)
-        link = item.get("href")
-        if text and link and len(text) > 15:
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        link = a.get("href")
+        if text and link and len(text) > 20:
             ilanlar.append((text, link, "SBB Kamuilan"))
     return ilanlar
 
@@ -86,27 +111,29 @@ def sbb():
 # =========================
 def kariyer():
     url = "https://kariyerkapisi.gov.tr/isealim"
-    r = requests.get(url)
+    r = safe_request(url)
+    if not r:
+        return []
     soup = BeautifulSoup(r.text, "html.parser")
     ilanlar = []
-    for item in soup.find_all("a"):
-        text = item.get_text(strip=True)
-        link = item.get("href")
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        link = a.get("href")
         if text and link and "isealim" in link:
             ilanlar.append((text, link, "Kariyer Kapısı"))
     return ilanlar
 
-
-# Tüm siteleri çek
+# =========================
+# TÜM SİTELERİ ÇEK
+# =========================
 for site in [iskur, ilan_gov, resmi_gazete, sbb, kariyer]:
     try:
         tum_ilanlar += site()
     except:
-        pass
-
+        continue
 
 # =========================
-# Filtre
+# FİLTRELE
 # =========================
 yeni = []
 
@@ -119,9 +146,8 @@ for baslik, link, kaynak in tum_ilanlar:
         yeni.append((baslik, link, kaynak))
         onceki.append(key)
 
-
 # =========================
-# Telegram Gönder
+# TELEGRAM GÖNDER
 # =========================
 async def gonder():
     for baslik, link, kaynak in yeni:
@@ -132,7 +158,6 @@ async def gonder():
 🔗 {link}
 """
         await bot.send_message(chat_id=CHAT_ID, text=mesaj)
-
 
 if yeni:
     asyncio.run(gonder())
