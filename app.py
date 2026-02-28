@@ -1,4 +1,3 @@
-# app.py
 import os
 import json
 import asyncio
@@ -6,68 +5,139 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot
 
-# Telegram bilgileri
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-if not TOKEN or not CHAT_ID:
-    raise ValueError("⚠ TOKEN veya CHAT_ID eksik!")
-
 bot = Bot(token=TOKEN)
 
-# İlanları kaydetmek için dosya
 ILAN_DOSYA = "ilanlar.json"
 
-# Dosya yoksa oluştur
 if not os.path.exists(ILAN_DOSYA):
     with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
-        json.dump([], f, ensure_ascii=False, indent=2)
+        json.dump([], f)
 
-# Önceki ilanları oku
 with open(ILAN_DOSYA, "r", encoding="utf-8") as f:
-    onceki_ilanlar = json.load(f)
+    onceki = json.load(f)
 
-# İŞKUR URL (örnek)
-URL = "https://esube.iskur.gov.tr/Istihdam/JobList"
-
-# Web sitesinden ilanları çek
-response = requests.get(URL)
-soup = BeautifulSoup(response.text, "html.parser")
-
-# Tüm ilan başlıkları
 tum_ilanlar = []
-for ilan in soup.find_all("div", class_="job-title"):  # siteye göre class değişebilir
-    text = ilan.get_text(strip=True)
-    tum_ilanlar.append(text)
 
-# 🔹 TEST İLANI EKLE (Telegram test için)
-# Bu satırı gerçek yayına alırken silebilirsin
+# =========================
+# 1️⃣ İŞKUR
+# =========================
+def iskur():
+    url = "https://esube.iskur.gov.tr/Istihdam/JobList"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
+    ilanlar = []
+    for item in soup.find_all("a"):
+        text = item.get_text(strip=True)
+        link = item.get("href")
+        if text and link and len(text) > 10:
+            ilanlar.append((text, "https://esube.iskur.gov.tr" + link, "İŞKUR"))
+    return ilanlar
+
+# =========================
+# 2️⃣ ilan.gov.tr
+# =========================
+def ilan_gov():
+    url = "https://www.ilan.gov.tr/ilan/kategori/8/kamu-akademik-personel"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
+    ilanlar = []
+    for item in soup.find_all("a"):
+        text = item.get_text(strip=True)
+        link = item.get("href")
+        if text and link and "ilan" in link:
+            ilanlar.append((text, "https://www.ilan.gov.tr" + link, "ilan.gov.tr"))
+    return ilanlar
+
+# =========================
+# 3️⃣ Resmi Gazete
+# =========================
+def resmi_gazete():
+    url = "https://www.resmigazete.gov.tr/"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
+    ilanlar = []
+    for item in soup.find_all("a"):
+        text = item.get_text(strip=True)
+        link = item.get("href")
+        if "personel" in text.lower():
+            ilanlar.append((text, link, "Resmi Gazete"))
+    return ilanlar
+
+# =========================
+# 4️⃣ SBB Kamuilan
+# =========================
+def sbb():
+    url = "https://kamuilan.sbb.gov.tr/"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
+    ilanlar = []
+    for item in soup.find_all("a"):
+        text = item.get_text(strip=True)
+        link = item.get("href")
+        if text and link and len(text) > 15:
+            ilanlar.append((text, link, "SBB Kamuilan"))
+    return ilanlar
+
+# =========================
+# 5️⃣ Kariyer Kapısı
+# =========================
+def kariyer():
+    url = "https://kariyerkapisi.gov.tr/isealim"
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
+    ilanlar = []
+    for item in soup.find_all("a"):
+        text = item.get_text(strip=True)
+        link = item.get("href")
+        if text and link and "isealim" in link:
+            ilanlar.append((text, link, "Kariyer Kapısı"))
+    return ilanlar
 
 
-# Yeni ilanları filtrele
-yeni_ilanlar = []
-for ilan in tum_ilanlar:
-    if ilan in onceki_ilanlar:
+# Tüm siteleri çek
+for site in [iskur, ilan_gov, resmi_gazete, sbb, kariyer]:
+    try:
+        tum_ilanlar += site()
+    except:
+        pass
+
+
+# =========================
+# Filtre
+# =========================
+yeni = []
+
+for baslik, link, kaynak in tum_ilanlar:
+    key = baslik + link
+    if key in onceki:
         continue
-    # KPSS’li ilan
-    if "KPSS" in ilan:
-        yeni_ilanlar.append(ilan)
-    # KPSS’siz memur / daimi / kamu ilanı
-    elif any(x in ilan for x in ["Memur", "Daimi", "Kamu"]) and "KPSS" not in ilan:
-        yeni_ilanlar.append(ilan)
 
-# Telegram’a gönder
+    if any(x in baslik for x in ["KPSS", "Memur", "Daimi", "Kamu"]):
+        yeni.append((baslik, link, kaynak))
+        onceki.append(key)
+
+
+# =========================
+# Telegram Gönder
+# =========================
 async def gonder():
-    for ilan in yeni_ilanlar:
-        await bot.send_message(chat_id=CHAT_ID, text=f"🚨 Yeni İlan: {ilan}")
+    for baslik, link, kaynak in yeni:
+        mesaj = f"""🚨 Yeni Kamu İlanı
 
-if yeni_ilanlar:
+📌 {baslik}
+🏢 Kaynak: {kaynak}
+🔗 {link}
+"""
+        await bot.send_message(chat_id=CHAT_ID, text=mesaj)
+
+
+if yeni:
     asyncio.run(gonder())
 
-# Son durumu kaydet
 with open(ILAN_DOSYA, "w", encoding="utf-8") as f:
-    json.dump(tum_ilanlar, f, ensure_ascii=False, indent=2)
+    json.dump(onceki, f)
 
-# Log için bilgi
-print(f"{len(yeni_ilanlar)} yeni ilan kontrol edildi ve gönderildi.")
-
+print(f"{len(yeni)} yeni ilan bulundu ve gönderildi.")
